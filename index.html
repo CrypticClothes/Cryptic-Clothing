@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Clothing Try-On</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@google/model-viewer@latest"></script>
+    <style>
+        body { margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #e0e0e0; font-family: Arial, sans-serif; }
+        #controls { position: absolute; top: 10px; left: 10px; display: flex; flex-direction: column; gap: 10px; background: rgba(255, 255, 255, 0.8); padding: 15px; border-radius: 10px; }
+        label { font-weight: bold; }
+        input[type='range'] { width: 150px; }
+        input[type='file'] { margin-top: 10px; }
+        model-viewer { width: 100vw; height: 90vh; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <label>Height: <input type="range" id="height" min="0.8" max="2" step="0.01" value="1"></label>
+        <label>Weight: <input type="range" id="weight" min="0.5" max="2" step="0.01" value="1"></label>
+        <input type="file" id="upload" accept="image/*" multiple>
+    </div>
+    <model-viewer id="avatar" src="https://modelviewer.dev/shared-assets/models/NeilArmstrong.glb" alt="3D Avatar" auto-rotate camera-controls ar></model-viewer>
+    <script>
+        const upload = document.getElementById('upload');
+        const avatar = document.getElementById('avatar');
+        const heightControl = document.getElementById('height');
+        const weightControl = document.getElementById('weight');
+        let layers = [];
+
+        function updateModelSize() {
+            avatar.style.transform = `scale(${heightControl.value})`;
+            avatar.style.setProperty('--scale-x', weightControl.value);
+            avatar.style.setProperty('--scale-y', heightControl.value);
+        }
+
+        heightControl.addEventListener('input', updateModelSize);
+        weightControl.addEventListener('input', updateModelSize);
+
+        upload.addEventListener('change', (event) => {
+            Array.from(event.target.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    layers.push(e.target.result);
+                    avatar.style.backgroundImage = layers.map(layer => `url('${layer}')`).join(', ');
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    </script>
+</body>
+</html>
