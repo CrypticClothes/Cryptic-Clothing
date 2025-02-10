@@ -1,53 +1,221 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Clothing Try-On</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@google/model-viewer@latest"></script>
-    <style>
-        body { margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #e0e0e0; font-family: Arial, sans-serif; }
-        #controls { position: absolute; top: 10px; left: 10px; display: flex; flex-direction: column; gap: 10px; background: rgba(255, 255, 255, 0.8); padding: 15px; border-radius: 10px; }
-        label { font-weight: bold; }
-        input[type='range'] { width: 150px; }
-        input[type='file'] { margin-top: 10px; }
-        model-viewer { width: 100vw; height: 90vh; }
-    </style>
-</head>
-<body>
-    <div id="controls">
-        <label>Height: <input type="range" id="height" min="0.8" max="2" step="0.01" value="1"></label>
-        <label>Weight: <input type="range" id="weight" min="0.5" max="2" step="0.01" value="1"></label>
-        <input type="file" id="upload" accept="image/*" multiple>
+import React, { Suspense, useState, useEffect, useContext, createContext } from 'react';
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
+import { motion } from "framer-motion";
+import { AiOutlineUser, AiOutlineShoppingCart, AiOutlineSetting } from "react-icons/ai";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Sidebar } from "./Sidebar";
+import { ThemeSwitcher } from "./ThemeSwitcher";
+import { Wishlist } from "./Wishlist";
+import { Footer } from "./Footer";
+import { ChatBot } from "./ChatBot";
+import { AIRecommendations } from "./AIRecommendations";
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+// Lazy load Model and other components
+const Model = React.lazy(() => import("./Model"));
+
+const CartContext = createContext();
+const WishlistContext = createContext();
+
+export default function VirtualTryOn() {
+  const [clothing, setClothing] = useState([]);
+  const [size, setSize] = useState(1);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Use contexts for cart and wishlist management
+  const { cart, addToCart, saveCart } = useContext(CartContext);
+  const { wishlist, addToWishlist, saveWishlist } = useContext(WishlistContext);
+
+  useEffect(() => {
+    // Load saved cart and wishlist data
+    const savedCart = JSON.parse(localStorage.getItem('cart'));
+    if (savedCart) addToCart(savedCart);
+
+    const savedWishlist = JSON.parse(localStorage.getItem('wishlist'));
+    if (savedWishlist) addToWishlist(savedWishlist);
+  }, []);
+
+  useEffect(() => {
+    saveCart(cart);
+  }, [cart]);
+
+  useEffect(() => {
+    saveWishlist(wishlist);
+  }, [wishlist]);
+
+  // Handle clothing upload
+  const handleAddClothing = async (event) => {
+    setLoading(true);
+    const file = event.target.files[0];
+    if (file) {
+      const imageUrl = URL.createObjectURL(file);
+      setClothing([...clothing, { src: imageUrl, rotation: 0 }]);
+      toast.success("Clothing added!");
+    }
+    setLoading(false);
+  };
+
+  // Handle 3D file upload
+  const handle3DFileUpload = (event) => {
+    const file = event.target.files[0];
+    const loader = new GLTFLoader();
+    loader.load(URL.createObjectURL(file), (gltf) => {
+      setClothing([...clothing, { src: gltf, rotation: 0 }]);
+      toast.success("3D model added!");
+    });
+  };
+
+  // Handle size change
+  const handleSizeChange = (e) => setSize(e.target.value);
+
+  return (
+    <div className="flex flex-col items-center p-6 bg-gray-100 dark:bg-gray-900 min-h-screen font-sans">
+      <ThemeSwitcher />
+      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+      <motion.h1
+        className="text-4xl font-extrabold mb-6 text-gray-900 dark:text-white"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        Virtual Try-On
+      </motion.h1>
+
+      <div className="relative w-full max-w-4xl bg-white dark:bg-gray-800 shadow-lg rounded-xl p-6">
+        <Suspense fallback={<div>Loading 3D Model...</div>}>
+          <Canvas className="w-full h-[600px] rounded-lg border">
+            <OrbitControls />
+            <ambientLight intensity={0.7} />
+            <directionalLight position={[2, 2, 2]} />
+            <Model clothing={clothing} size={size} />
+          </Canvas>
+        </Suspense>
+
+        <div className="mt-6 flex flex-col items-center gap-4">
+          <Input
+            type="file"
+            accept="image/*"
+            onChange={handleAddClothing}
+            className="p-2 border rounded-lg shadow-sm w-full max-w-md"
+          />
+          <Input
+            type="file"
+            accept=".glb"
+            onChange={handle3DFileUpload}
+            className="p-2 border rounded-lg shadow-sm w-full max-w-md"
+          />
+          {loading ? <div>Loading...</div> : null}
+
+          <input
+            type="range"
+            min="0.5"
+            max="2"
+            step="0.1"
+            value={size}
+            onChange={handleSizeChange}
+            className="mt-4"
+          />
+          <label>Size: {size}</label>
+
+          <div className="grid grid-cols-3 gap-4">
+            {clothing.map((item, index) => (
+              <ClothingCard
+                key={index}
+                item={item}
+                addToCart={addToCart}
+                addToWishlist={addToWishlist}
+              />
+            ))}
+          </div>
+        </div>
+
+        <button
+          className="absolute top-4 right-24 p-2 bg-gray-600 text-white rounded-full shadow-lg hover:bg-gray-700"
+          onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+        >
+          <AiOutlineSetting size={24} />
+        </button>
+
+        <button
+          className="absolute top-4 right-16 p-2 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+        >
+          <AiOutlineShoppingCart size={24} />
+        </button>
+
+        <button
+          className="absolute top-4 right-4 p-2 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600"
+          onClick={() => setIsChatOpen(!isChatOpen)}
+        >
+          <AiOutlineUser size={24} />
+        </button>
+      </div>
+
+      {isChatOpen && <ChatBot />}
+      {isSettingsOpen && <AIRecommendations clothing={clothing} />}
+      <Wishlist items={wishlist} />
+      <Footer />
+      <ToastContainer />
     </div>
-    <model-viewer id="avatar" src="https://modelviewer.dev/shared-assets/models/NeilArmstrong.glb" alt="3D Avatar" auto-rotate camera-controls ar></model-viewer>
-    <script>
-        const upload = document.getElementById('upload');
-        const avatar = document.getElementById('avatar');
-        const heightControl = document.getElementById('height');
-        const weightControl = document.getElementById('weight');
-        let layers = [];
+  );
+}
 
-        function updateModelSize() {
-            avatar.style.transform = `scale(${heightControl.value})`;
-            avatar.style.setProperty('--scale-x', weightControl.value);
-            avatar.style.setProperty('--scale-y', heightControl.value);
-        }
+// Clothing Card Component
+const ClothingCard = ({ item, addToCart, addToWishlist }) => (
+  <Card className="shadow-md rounded-lg overflow-hidden">
+    <CardContent>
+      <img
+        src={item.src}
+        alt="Clothing"
+        className="w-full h-28 object-cover rounded-lg"
+      />
+      <Button onClick={() => addToCart(item)} className="mt-2 w-full">Add to Cart</Button>
+      <Button onClick={() => addToWishlist(item)} className="mt-2 w-full">Add to Wishlist</Button>
+    </CardContent>
+  </Card>
+);
 
-        heightControl.addEventListener('input', updateModelSize);
-        weightControl.addEventListener('input', updateModelSize);
+// CartContext Provider
+export function CartProvider({ children }) {
+  const [cart, setCart] = useState([]);
 
-        upload.addEventListener('change', (event) => {
-            Array.from(event.target.files).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    layers.push(e.target.result);
-                    avatar.style.backgroundImage = layers.map(layer => `url('${layer}')`).join(', ');
-                };
-                reader.readAsDataURL(file);
-            });
-        });
-    </script>
-</body>
-</html>
+  const addToCart = (item) => {
+    setCart((prevCart) => [...prevCart, item]);
+  };
+
+  const saveCart = (cart) => {
+    localStorage.setItem('cart', JSON.stringify(cart));
+  };
+
+  return (
+    <CartContext.Provider value={{ cart, addToCart, saveCart }}>
+      {children}
+    </CartContext.Provider>
+  );
+}
+
+// WishlistContext Provider
+export function WishlistProvider({ children }) {
+  const [wishlist, setWishlist] = useState([]);
+
+  const addToWishlist = (item) => {
+    setWishlist((prevWishlist) => [...prevWishlist, item]);
+  };
+
+  const saveWishlist = (wishlist) => {
+    localStorage.setItem('wishlist', JSON.stringify(wishlist));
+  };
+
+  return (
+    <WishlistContext.Provider value={{ wishlist, addToWishlist, saveWishlist }}>
+      {children}
+    </WishlistContext.Provider>
+  );
+}
